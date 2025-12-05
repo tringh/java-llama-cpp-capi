@@ -154,7 +154,11 @@ COPY --from=builder /tmp/jdk-21.deb /tmp/jdk-21.deb
 RUN dpkg -i /tmp/jdk-25.deb && \
     dpkg -i /tmp/jdk-22.deb && \
     dpkg -i /tmp/jdk-21.deb && \
-    rm /tmp/jdk-*.deb
+    rm /tmp/jdk-*.deb && \
+    ln -s "$(find /usr/lib/jvm -maxdepth 1 -name 'jdk-25.*' -type d | head -n 1)" /usr/lib/jvm/jdk-25 && \
+    ln -s "$(find /usr/lib/jvm -maxdepth 1 -name 'jdk-22.*' -type d | head -n 1)" /usr/lib/jvm/jdk-22 && \
+    ln -s "$(find /usr/lib/jvm -maxdepth 1 -name 'jdk-21.*' -type d | head -n 1)" /usr/lib/jvm/jdk-21 && \
+    ls -ld /usr/lib/jvm/jdk-25/bin/java
 
 # --- Set up Java environment variables (default to JDK 25) ---
 ENV JAVA_HOME=/usr/lib/jvm/jdk-25
