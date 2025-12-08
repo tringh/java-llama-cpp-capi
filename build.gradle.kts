@@ -53,7 +53,8 @@ publishing {
     repositories {
         maven {
             name = "GithubPackages"
-            url = uri("https://maven.pkg.github.com/tringh/java-llama-cpp-capi")
+            val repoSlug = System.getenv("GITHUB_REPOSITORY") ?: "tringh/java-llama-capi"
+            url = uri("https://maven.pkg.github.com/${repoSlug.lowercase()}")
 
             credentials {
                 username = project.findProperty("gpr.user") as String? ?: System.getenv("GITHUB_ACTOR")
