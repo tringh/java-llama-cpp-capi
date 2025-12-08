@@ -2,8 +2,6 @@ package io.github.tringh.jallama.tokenizer;
 
 import org.junit.jupiter.api.*;
 
-import java.io.IOException;
-
 import static org.junit.jupiter.api.Assertions.*;
 
 public class TokenizerTest {
@@ -24,6 +22,7 @@ public class TokenizerTest {
 
     @BeforeEach
     void setup() {
+        var modelPath = getClass().getResource("/models/llama-3.1-8b-instruct-vocab.gguf").getPath();
         tokenizer = service.newTokenizer("/models/llama-3.1-8b-instruct-vocab.gguf");
     }
 
