@@ -4,7 +4,7 @@ docker run -d \
   -v $SSH_AUTH_SOCK:/ssh-agent \
   -e SSH_AUTH_SOCK:=/ssh-agent \
   -v ~/.gitconfig:/home/developer/.gitconfig \
-  -v .:/code/java-llama-cpp-capi \
+  -v .:/code/java-llama-capi \
   -v ~/mlearn/models:/models \
-  --name java-llama-cpp-capi-dev \
-  htring/java-llama:0.0.1
+  --name java-llama-capi-dev \
+  tringh/java-llama-capi-devel:0.0.1

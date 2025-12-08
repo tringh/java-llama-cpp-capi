@@ -2,7 +2,6 @@
 # STAGE 1: Builder
 #
 # In this stage, we download and prepare IntelliJ IDEA, Java tools, and C/C++ tools.
-# This keeps the final production image lean by not including temporary build tools.
 # =================================================================================================
 FROM ubuntu:24.04 AS builder
 
@@ -14,7 +13,6 @@ ARG JEXTRACT_VERSION=22-6
 # --- Added C/C++ Tool Versions ---
 ARG CMAKE_VERSION=3.31.2
 ARG NINJA_VERSION=1.12.1
-ARG CUDA_VERSION=13.0.2
 
 ENV IDEA_VERSION=${IDEA_VERSION}
 ENV GRADLE_VERSION=${GRADLE_VERSION}
@@ -22,7 +20,7 @@ ENV MAVEN_VERSION=${MAVEN_VERSION}
 ENV CMAKE_VERSION=${CMAKE_VERSION}
 ENV NINJA_VERSION=${NINJA_VERSION}
 
-# Install build-time dependencies (merged from both files)
+# Install build-time dependencies
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     curl \
@@ -68,13 +66,13 @@ RUN curl -L "https://download.oracle.com/java/25/latest/jdk-25_linux-x64_bin.deb
 RUN curl -L "https://download.oracle.com/java/22/archive/jdk-22.0.2_linux-x64_bin.deb" -o /tmp/jdk-22.deb
 RUN curl -L "https://download.oracle.com/java/21/latest/jdk-21_linux-x64_bin.deb" -o /tmp/jdk-21.deb
 
-# --- Download and Extract CMake (from CLion file) ---
+# --- Download and Extract CMake ---
 ARG CMAKE_INSTALL_DIR=/opt/cmake
 RUN mkdir -p ${CMAKE_INSTALL_DIR} && \
     curl -L "https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-x86_64.tar.gz" | \
     tar -xz -C ${CMAKE_INSTALL_DIR} --strip-components=1
 
-# --- Download and Extract Ninja (from CLion file) ---
+# --- Download and Extract Ninja ---
 ARG NINJA_INSTALL_DIR=/opt/ninja
 RUN mkdir -p ${NINJA_INSTALL_DIR} && \
     curl -L "https://github.com/ninja-build/ninja/releases/download/v${NINJA_VERSION}/ninja-linux.zip" -o /tmp/ninja.zip && \
@@ -82,24 +80,21 @@ RUN mkdir -p ${NINJA_INSTALL_DIR} && \
     rm /tmp/ninja.zip
 
 # =================================================================================================
-# STAGE 2: Final Production Image
+# STAGE 2: Final Production Image (CPU ONLY)
 #
-# This is the final, optimized image. It includes Java, C/C++, CUDA, dev tools,
-# and the IntelliJ IDEA server, ready for remote development.
+# Optimized for size: No CUDA, No Nvidia drivers.
 # =================================================================================================
 FROM ubuntu:24.04
 
-# Set versions again for use in this stage
 ARG IDEA_VERSION=2025.2.4
-ARG CUDA_VERSION=13.0.2
 ENV IDEA_VERSION=${IDEA_VERSION}
-ENV CUDA_VERSION=${CUDA_VERSION}
 
 # --- Environment Setup ---
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=Etc/UTC
 
-# --- Install System Dependencies & Essential Dev Tools (Merged List) ---
+# --- Install System Dependencies & Essential Dev Tools ---
+# Removed: gnupg2, software-properties-common (only needed for CUDA repo setup previously)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     # SSH Server
@@ -141,10 +136,7 @@ RUN apt-get update && \
     htop \
     # Documentation & Help
     man-db \
-    manpages-dev \
-    # Required for CUDA installation
-    gnupg2 \
-    software-properties-common && \
+    manpages-dev && \
     rm -rf /var/lib/apt/lists/*
 
 # --- Install Oracle JDKs ---
@@ -163,26 +155,6 @@ RUN dpkg -i /tmp/jdk-25.deb && \
 # --- Set up Java environment variables (default to JDK 25) ---
 ENV JAVA_HOME=/usr/lib/jvm/jdk-25
 
-# --- Install NVIDIA CUDA Toolkit (from CLion file) ---
-RUN wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb && \
-    dpkg -i cuda-keyring_1.1-1_all.deb && \
-    rm cuda-keyring_1.1-1_all.deb
-
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    cuda-toolkit-13-0 \
-    cuda-cudart-dev-13-0 \
-    cuda-nvcc-13-0 \
-    cuda-libraries-dev-13-0 \
-    libcublas-dev-13-0 \
-    libcurand-dev-13-0 && \
-    rm -rf /var/lib/apt/lists/*
-
-# --- Set up CUDA environment variables (from CLion file) ---
-ENV CUDA_HOME=/usr/local/cuda-13.0
-ENV CUDA_PATH=/usr/local/cuda-13.0
-ENV LD_LIBRARY_PATH=${CUDA_HOME}/lib64:${LD_LIBRARY_PATH}
-
 # --- Install Gradle ---
 ARG GRADLE_INSTALL_DIR=/opt/gradle
 COPY --from=builder ${GRADLE_INSTALL_DIR} ${GRADLE_INSTALL_DIR}
@@ -199,34 +171,28 @@ ARG JEXTRACT_INSTALL_DIR=/opt/jextract
 COPY --from=builder ${JEXTRACT_INSTALL_DIR} ${JEXTRACT_INSTALL_DIR}
 ENV JEXTRACT_INSTALL_DIR=${JEXTRACT_INSTALL_DIR}
 
-# --- Install CMake (from CLion file) ---
+# --- Install CMake ---
 ARG CMAKE_INSTALL_DIR=/opt/cmake
 COPY --from=builder ${CMAKE_INSTALL_DIR} ${CMAKE_INSTALL_DIR}
 ENV CMAKE_HOME=${CMAKE_INSTALL_DIR}
 
-# --- Install Ninja (from CLion file) ---
+# --- Install Ninja ---
 ARG NINJA_INSTALL_DIR=/opt/ninja
 COPY --from=builder ${NINJA_INSTALL_DIR} ${NINJA_INSTALL_DIR}
 ENV NINJA_HOME=${NINJA_INSTALL_DIR}
 
 # ========================================================================================
-# >>>>>>>>>>>>>>>>>>>>>>>>>>>> MODIFIED SECTION START <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+# --- Configure Environment PATH for all command-line tools ---
+# Removed: CUDA paths
 # ========================================================================================
-# --- Configure Environment PATH for all command-line tools (Merged) ---
 
 # 1. Set the PATH for non-login shells (e.g., `docker exec`)
-ENV PATH="${JAVA_HOME}/bin:${GRADLE_HOME}/bin:${MAVEN_HOME}/bin:${JEXTRACT_INSTALL_DIR}/bin:${CUDA_HOME}/bin:${CMAKE_HOME}/bin:${NINJA_HOME}:${PATH}"
+ENV PATH="${JAVA_HOME}/bin:${GRADLE_HOME}/bin:${MAVEN_HOME}/bin:${JEXTRACT_INSTALL_DIR}/bin:${CMAKE_HOME}/bin:${NINJA_HOME}:${PATH}"
 
 # 2. For SSH login shells, write the DIRECT paths to the system-wide profile
-RUN echo 'export PATH="/usr/lib/jvm/jdk-25/bin:/opt/gradle/bin:/opt/maven/bin:/opt/jextract/bin:/usr/local/cuda-13.0/bin:/opt/cmake/bin:/opt/ninja:${PATH}"' >> /etc/profile && \
-    echo 'export LD_LIBRARY_PATH="/usr/local/cuda-13.0/lib64:${LD_LIBRARY_PATH}"' >> /etc/profile && \
-    echo 'export CUDA_HOME=/usr/local/cuda-13.0' >> /etc/profile
-# ========================================================================================
-# >>>>>>>>>>>>>>>>>>>>>>>>>>>> MODIFIED SECTION END <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-# ========================================================================================
+RUN echo 'export PATH="/usr/lib/jvm/jdk-25/bin:/opt/gradle/bin:/opt/maven/bin:/opt/jextract/bin:/opt/cmake/bin:/opt/ninja:${PATH}"' >> /etc/profile
 
 # --- Remove the conflicting default 'ubuntu' user ---
-# This user often has UID 1000, which can conflict with the host user.
 RUN if id "ubuntu" &>/dev/null; then userdel -r ubuntu; fi
 
 # --- Create a non-root user 'developer' ---
@@ -260,10 +226,7 @@ USER developer
 WORKDIR /home/developer
 
 # --- CRITICAL STEP: Register the IDE backend for Gateway ---
-#RUN ${IDEA_INSTALL_DIR}/bin/remote-dev-server.sh registerBackendLocationForGateway
-
 # [FIX] Prepend the export to .bashrc (Top of file strategy) and append to .profile
-# This ensures CLion non-interactive shells still see the socket.
 RUN echo "export SSH_AUTH_SOCK=/ssh-agent" > ~/.bashrc_temp && \
     ([ -f ~/.bashrc ] && cat ~/.bashrc >> ~/.bashrc_temp || true) && \
     mv ~/.bashrc_temp ~/.bashrc && \
