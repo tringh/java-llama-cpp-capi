@@ -23,7 +23,7 @@ public class TokenizerTest {
     @BeforeEach
     void setup() {
         var modelPath = getClass().getResource("/models/llama-3.1-8b-instruct-vocab.gguf").getPath();
-        tokenizer = service.newTokenizer("/models/llama-3.1-8b-instruct-vocab.gguf");
+        tokenizer = service.newTokenizer(modelPath);
     }
 
     @AfterEach
