@@ -1,1 +1,1 @@
-rootProject.name = "java-llama-cpp-capi"
+rootProject.name = "java-llama-capi"
